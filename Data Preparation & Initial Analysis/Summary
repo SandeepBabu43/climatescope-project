@@ -1,0 +1,108 @@
+====================================================================
+             SUMMARY DOCUMENT OUTLINE: DATA CLEANING REPORT
+====================================================================
+
+The data cleaning and preprocessing script was successfully executed on the "GlobalWeatherRepository (1).csv" dataset (98,799 entries).
+
+The following steps were performed to prepare the data for analysis:
+
+--------------------------------------------------------------------
+1. Data Schema (Final Cleaned Dataset):
+--------------------------------------------------------------------
+The dataset was reduced from 41 columns to 35 columns after unit standardization.
+
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 98799 entries, 0 to 98798
+Data columns (total 35 columns):
+ #   Column                          Non-Null Count  Dtype         
+---  ------                          --------------  -----         
+ 0   country                         98799 non-null  object        
+ 1   location_name                   98799 non-null  object        
+ 2   latitude                        98799 non-null  float64       
+ 3   longitude                       98799 non-null  float64       
+ 4   timezone                        98799 non-null  object        
+ 5   last_updated_epoch              98799 non-null  int64         
+ 6   last_updated                    98799 non-null  datetime64[ns]
+ 7   temperature_celsius             98799 non-null  float64       
+ 8   condition_text                  98799 non-null  object        
+ 9   wind_kph                        98799 non-null  float64       
+10  wind_degree                     98799 non-null  int64         
+11  wind_direction                  98799 non-null  object        
+12  pressure_mb                     98799 non-null  float64       
+13  precip_mm                       98799 non-null  float64       
+14  humidity                        98799 non-null  int64         
+15  cloud                           98799 non-null  int64         
+16  feels_like_celsius              98799 non-null  float64       
+17  visibility_km                   98799 non-null  float64       
+18  uv_index                        98799 non-null  float64       
+19  gust_kph                        98799 non-null  float64       
+20  air_quality_Carbon_Monoxide     98799 non-null  float64       
+21  air_quality_Ozone               98799 non-null  float64       
+22  air_quality_Nitrogen_dioxide    98799 non-null  float64       
+23  air_quality_Sulphur_dioxide     98799 non-null  float64       
+24  air_quality_PM2.5               98799 non-null  float64       
+25  air_quality_PM10                98799 non-null  float64       
+26  air_quality_us-epa-index        98799 non-null  int64         
+27  air_quality_gb-defra-index      98799 non-null  int64         
+28  sunrise                         98799 non-null  datetime64[ns]
+29  sunset                          98799 non-null  datetime64[ns]
+30  moonrise                        95497 non-null  datetime64[ns]
+31  moonset                         95497 non-null  datetime64[ns]
+32  moon_phase                      98799 non-null  object        
+33  moon_illumination               98799 non-null  int64         
+34  temperature_celsius_normalized  98799 non-null  float64       
+dtypes: datetime64[ns](5), float64(17), int64(7), object(6)
+
+--------------------------------------------------------------------
+2. Key Variables (Post-Processing Descriptive Statistics):
+--------------------------------------------------------------------
+
+- 'temperature_celsius' (Original):
+| Metric |   Value |
+|:-----|--------:|
+| mean | 22.7587 |
+| min  | -24.9000|
+| max  | 49.2000 |
+
+- 'temperature_celsius_normalized' (New Normalized Column - Range 0 to 1):
+| Metric |   Value |
+|:-----|--------:|
+| mean | 0.643168|
+| min  | 0.000000|
+| max  | 1.000000|
+
+- Categorical Variable Counts (Top 5 Weather Conditions):
+| condition_text     |   count |
+|:-------------------|--------:|
+| Partly cloudy      |   30727 |
+| Sunny              |   30546 |
+| Patchy rain nearby |    8192 |
+| Partly Cloudy      |    5387 |
+| Overcast           |    4712 |
+
+--------------------------------------------------------------------
+3. Data Quality Issues Handled:
+--------------------------------------------------------------------
+- Missing Values: 
+    - The initial numerical columns had NO missing values.
+    - Time-based columns (`moonrise`, `moonset`) had some missing values (95497 non-null out of 98799 total). These were implicitly handled by converting them to `datetime` objects, which correctly represents the missing times as `NaT` (Not a Time).
+- Unit Inconsistency: Removed redundant columns (Fahrenheit, Miles, Inches, MPH) to standardize on Metric (Celsius, km/h, mb, mm).
+- Data Types: Converted 'last_updated' and all time columns to proper `datetime` objects for accurate time-series analysis.
+- Normalization: Applied **Min-Max scaling** to temperature to standardize the feature range (0-1).
+
+--------------------------------------------------------------------
+4. Aggregation Example: Monthly Averages for India
+--------------------------------------------------------------------
+| month   | avg_temp_c   | avg_humidity   | max_wind_kph   | count   |
+|:--------|:-------------|:---------------|:---------------|:--------|
+| 2024-05 | 39.5882      | 20.7647        | 16.9           | 17      |
+| 2024-06 | 38.2         | 32.3793        | 29.2           | 29      |
+| 2024-07 | 34.5286      | 60.4286        | 15.5           | 28      |
+| 2024-08 | 32.0419      | 68.6452        | 21.2           | 31      |
+| 2024-09 | 31.0133      | 71.2667        | 15.5           | 30      |
+
+--------------------------------------------------------------------
+5. Deliverables Status:
+--------------------------------------------------------------------
+- Cleaned and Preprocessed Dataset: **`GlobalWeatherRepository_cleaned_processed.csv`** (Successfully generated and downloaded.)
+- Summary Document: Provided above.
