@@ -1,20 +1,24 @@
 import pandas as pd
 import numpy as np
+import io
 
 class WeatherDataCleaner:
     """
-    A class to perform the cleaning, standardization, and aggregation
+    A class to perform the cleaning, standardization, and aggregation 
+    required for Milestone 1 of the Global Weather Repository project.
     """
 
     def __init__(self, original_file_path: str):
         """Initializes the cleaner and loads the original dataset."""
         self.original_file_path = original_file_path
         self.df = None
+        # Using print here to provide immediate feedback on the file path used
         print(f"Initializing cleaner for file: {original_file_path}")
 
     def load_data(self):
         """Loads the dataset and performs initial structural checks."""
         try:
+            # Note: For running locally, this path must be accurate on your system.
             self.df = pd.read_csv(self.original_file_path)
             print(f"Successfully loaded {len(self.df)} records.")
             if self.df.isnull().sum().any():
@@ -22,7 +26,7 @@ class WeatherDataCleaner:
             else:
                 print("Initial check: No missing values found.")
         except Exception as e:
-            print(f"FATAL ERROR during data loading: {e}")
+            print(f"FATAL ERROR during data loading. Check your file path and that the file exists: {e}")
             self.df = None
             return False
         return True
@@ -38,6 +42,7 @@ class WeatherDataCleaner:
         
         # 1. Date Conversion: Convert to datetime and create monthly key
         self.df['last_updated'] = pd.to_datetime(self.df['last_updated'])
+        # .dt.to_period('M') is used to create a reliable monthly grouping key
         self.df['observation_month'] = self.df['last_updated'].dt.to_period('M')
 
         # 2. Unit Standardization: Select metric columns and drop redundant Imperial units.
@@ -88,7 +93,7 @@ class WeatherDataCleaner:
             'air_quality_PM2.5': 'mean', 'air_quality_PM10': 'mean',
         }
 
-        # Group and aggregate
+        # Group by country, location, and month, and aggregate
         df_monthly_avg = self.df.groupby(
             ['country', 'location_name', 'observation_month'], 
             as_index=False
@@ -107,17 +112,23 @@ class WeatherDataCleaner:
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    cleaner = WeatherDataCleaner(original_file_path='GlobalWeatherRepository.csv')
+    # USER'S LOCAL FILE PATH USED HERE
+    local_file_path = "C:\\Users\\sande\\Downloads\\climatescope-project\\Data Preparation & Initial Analysis\\GlobalWeatherRepository_cleaned.csv"
+    
+    cleaner = WeatherDataCleaner(original_file_path=local_file_path)
     
     if cleaner.load_data():
         cleaner.preprocess_and_standardize()
         df_final = cleaner.aggregate_data()
 
         if df_final is not None:
+            # Output file is saved next to the script, or to a default location
             output_file = 'GlobalWeatherRepository_Monthly_Aggregate.csv'
             df_final.to_csv(output_file, index=False)
-            print(f"\n✅ Final cleaned and aggregated dataset saved to: {output_file}")
-            print("\n--- Final Dataset Head ---")
+            
+            print(f"\n✅ FINAL DATASET READY: {output_file}")
+            print(f"The file was created locally in the same directory as your script.")
+            print("\n--- Final Dataset Head (First 5 Monthly Records) ---")
             print(df_final.head().to_markdown(index=False))
         else:
             print("\n❌ Process failed during aggregation.")
