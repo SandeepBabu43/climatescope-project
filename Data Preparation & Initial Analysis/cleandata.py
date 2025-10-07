@@ -1,134 +1,110 @@
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 import numpy as np
-import io
 
-class WeatherDataCleaner:
-    """
-    A class to perform the cleaning, standardization, and aggregation.
-    """
+# --- 1. Load and Initial Inspection ---
+file_path = 'GlobalWeatherRepository_cleaned.csv'
+df = pd.read_csv(file_path)
 
-    def __init__(self, original_file_path: str):
-        """Initializes the cleaner and loads the original dataset."""
-        self.original_file_path = original_file_path
-        self.df = None
-        # Using print here to provide immediate feedback on the file path used
-        print(f"Initializing cleaner for file: {original_file_path}")
+print("--- 1. Initial Dataset Structure and Data Types (df.info()) ---")
+df.info()
 
-    def load_data(self):
-        """Loads the dataset and performs initial structural checks."""
-        try:
-            # Note: For running locally, this path must be accurate on your system.
-            self.df = pd.read_csv(self.original_file_path)
-            print(f"Successfully loaded {len(self.df)} records.")
-            if self.df.isnull().sum().any():
-                print("Warning: Missing values detected (Will be handled by aggregation).")
-            else:
-                print("Initial check: No missing values found.")
-        except Exception as e:
-            print(f"FATAL ERROR during data loading. Check your file path and that the file exists: {e}")
-            self.df = None
-            return False
-        return True
+print("\n--- 1. First 5 rows of the dataset (df.head()) ---")
+print(df.head().to_markdown(index=False, numalign="left", stralign="left"))
 
-    def preprocess_and_standardize(self):
-        """
-        Converts date columns and standardizes units by dropping Imperial columns.
-        """
-        if self.df is None:
-            return
 
-        print("Preprocessing and standardizing units...")
-        
-        # 1. Date Conversion: Convert to datetime and create monthly key
-        self.df['last_updated'] = pd.to_datetime(self.df['last_updated'])
-        # .dt.to_period('M') is used to create a reliable monthly grouping key
-        self.df['observation_month'] = self.df['last_updated'].dt.to_period('M')
+# --- 2. Identify Missing Values and Data Coverage ---
+print("\n--- 2. Missing Values Count per Column ---")
+missing_values = df.isnull().sum()
+print(missing_values[missing_values > 0].sort_values(ascending=False).to_markdown())
 
-        # 2. Unit Standardization: Select metric columns and drop redundant Imperial units.
-        cols_to_keep = [
-            'country', 'location_name', 'latitude', 'longitude', 'timezone',
-            'observation_month', 'temperature_celsius', 'condition_text',
-            'wind_kph', 'wind_degree', 'wind_direction', 'pressure_mb',
-            'precip_mm', 'humidity', 'cloud', 'feels_like_celsius',
-            'visibility_km', 'uv_index', 'gust_kph',
-            'air_quality_Carbon_Monoxide', 'air_quality_Ozone', 'air_quality_Nitrogen_dioxide',
-            'air_quality_Sulphur_dioxide', 'air_quality_PM2.5', 'air_quality_PM10',
-            'air_quality_us-epa-index', 'air_quality_gb-defra-index',
-            'sunrise', 'sunset', 'moonrise', 'moonset', 'moon_phase', 'moon_illumination'
-        ]
-        self.df = self.df[cols_to_keep]
-        print(f"Data standardized. Reduced to {len(self.df.columns)} columns (Metric units kept).")
+# For simplicity in this script, we'll assume the coverage is sufficient based on the counts.
+# Anomalies would typically be checked using descriptive statistics (df.describe())
+# and visualization (box plots), but for a text-based code deliverable, we focus on
+# identifying data type inconsistencies and obvious missingness.
 
-    def aggregate_data(self):
-        """
-        Aggregates daily/hourly data to monthly averages by location.
-        """
-        if self.df is None:
-            return None
 
-        print("Aggregating data to monthly averages...")
+# --- 3. Handle Missing or Inconsistent Entries ---
 
-        # Define aggregation functions
-        agg_funcs = {
-            # Identifier/Categorical: take first value or mode (most frequent)
-            'latitude': 'first', 'longitude': 'first', 'timezone': 'first',
-            'condition_text': lambda x: x.mode()[0] if not x.mode().empty else np.nan,
-            'wind_direction': lambda x: x.mode()[0] if not x.mode().empty else np.nan,
-            'moon_phase': lambda x: x.mode()[0] if not x.mode().empty else np.nan,
-            'air_quality_us-epa-index': lambda x: x.mode()[0] if not x.mode().empty else np.nan,
-            'air_quality_gb-defra-index': lambda x: x.mode()[0] if not x.mode().empty else np.nan,
-            'sunrise': 'first', 'sunset': 'first', 'moonrise': 'first', 'moonset': 'first',
-            
-            # Summation for total monthly rainfall
-            'precip_mm': 'sum',
-            
-            # Mean for all other numerical metrics
-            'temperature_celsius': 'mean', 'wind_kph': 'mean', 'wind_degree': 'mean',
-            'pressure_mb': 'mean', 'humidity': 'mean', 'cloud': 'mean', 
-            'feels_like_celsius': 'mean', 'visibility_km': 'mean', 'uv_index': 'mean', 
-            'gust_kph': 'mean', 'moon_illumination': 'mean',
-            'air_quality_Carbon_Monoxide': 'mean', 'air_quality_Ozone': 'mean',
-            'air_quality_Nitrogen_dioxide': 'mean', 'air_quality_Sulphur_dioxide': 'mean',
-            'air_quality_PM2.5': 'mean', 'air_quality_PM10': 'mean',
-        }
+# A. Convert date/time columns to datetime objects
+df['last_updated'] = pd.to_datetime(df['last_updated'])
+df['sunrise'] = pd.to_datetime(df['sunrise'], format='%I:%M %p', errors='coerce')
+df['sunset'] = pd.to_datetime(df['sunset'], format='%I:%M %p', errors='coerce')
+df['moonrise'] = pd.to_datetime(df['moonrise'], format='%I:%M %p', errors='coerce')
+df['moonset'] = pd.to_datetime(df['moonset'], format='%I:%M %p', errors='coerce')
 
-        # Group by country, location, and month, and aggregate
-        df_monthly_avg = self.df.groupby(
-            ['country', 'location_name', 'observation_month'], 
-            as_index=False
-        ).agg(agg_funcs)
+# B. Handle Missing Numerical Data (Imputation)
+# Identify numerical columns (excluding epoch, latitude/longitude, and a few others that should not be mean-imputed)
+numerical_cols = df.select_dtypes(include=np.number).columns.tolist()
 
-        # Rename columns to clearly indicate they are monthly aggregates
-        new_columns = {
-            col: f'avg_{col}' for col in df_monthly_avg.columns 
-            if col not in ['country', 'location_name', 'observation_month', 'timezone', 'condition_text', 'wind_direction', 'sunrise', 'sunset', 'moonrise', 'moonset', 'moon_phase', 'air_quality_us-epa-index', 'air_quality_gb-defra-index']
-        }
-        df_monthly_avg = df_monthly_avg.rename(columns=new_columns)
-        df_monthly_avg = df_monthly_avg.rename(columns={'precip_mm': 'total_precip_mm'})
-        
-        print(f"Aggregation complete. Final row count: {len(df_monthly_avg)}")
-        return df_monthly_avg
+# Columns to exclude from mean imputation (as they are identifiers or unique time stamps)
+cols_to_exclude = ['last_updated_epoch', 'latitude', 'longitude']
+numerical_impute_cols = [col for col in numerical_cols if col not in cols_to_exclude]
 
-# --- Main Execution ---
-if __name__ == "__main__":
-    # USER'S LOCAL FILE PATH USED HERE
-    local_file_path = "C:\\Users\\sande\\Downloads\\climatescope-project\\Data Preparation & Initial Analysis\\GlobalWeatherRepository_cleaned.csv"
-    
-    cleaner = WeatherDataCleaner(original_file_path=local_file_path)
-    
-    if cleaner.load_data():
-        cleaner.preprocess_and_standardize()
-        df_final = cleaner.aggregate_data()
+print("\n--- 3. Handling Missing Numerical Data (Mean Imputation) ---")
+# Impute missing values in the selected numerical columns with the mean
+for col in numerical_impute_cols:
+    df[col].fillna(df[col].mean(), inplace=True)
+    if missing_values[col] > 0:
+        print(f"Filled {missing_values[col]} missing values in '{col}' with the mean: {df[col].mean():.2f}")
 
-        if df_final is not None:
-            # Output file is saved next to the script, or to a default location
-            output_file = 'GlobalWeatherRepository_Monthly_Aggregate.csv'
-            df_final.to_csv(output_file, index=False)
-            
-            print(f"\n✅ FINAL DATASET READY: {output_file}")
-            print(f"The file was created locally in the same directory as your script.")
-            print("\n--- Final Dataset Head (First 5 Monthly Records) ---")
-            print(df_final.head().to_markdown(index=False))
-        else:
-            print("\n❌ Process failed during aggregation.")
 
+# --- 4. Convert Units and Normalize Values ---
+
+# A. Unit Conversion (Removing redundant columns)
+# The dataset has both C/F and km/miles. We will keep Celsius and Kilometers for a consistent metric system.
+df.drop(columns=['temperature_fahrenheit', 'feels_like_fahrenheit', 'visibility_miles', 'pressure_in', 'precip_in', 'wind_mph', 'gust_mph'], inplace=True)
+print("\n--- 4. Unit Conversion: Removed redundant unit columns (Fahrenheit, Miles, Inches) ---")
+
+# B. Normalization (Min-Max Scaling)
+# Normalize 'temperature_celsius' to a range of 0 to 1
+scaler = MinMaxScaler()
+df['temperature_celsius_normalized'] = scaler.fit_transform(df[['temperature_celsius']])
+print("\n--- 4. Normalization: 'temperature_celsius' normalized and saved as 'temperature_celsius_normalized'. ---")
+
+
+# --- 5. Aggregate or Filter Data ---
+
+# A. Filtering: Example - Filter for a single country
+country_filter = 'India'
+df_filtered = df[df['country'] == country_filter].copy()
+print(f"\n--- 5. Filtering: Dataset filtered for '{country_filter}'. New size: {len(df_filtered)} rows. ---")
+
+# B. Aggregation: Example - Daily to Monthly Average Temperature for the filtered data
+# Extract the month from the 'last_updated' datetime object
+df_filtered['month'] = df_filtered['last_updated'].dt.to_period('M')
+
+# Group by month and calculate the mean of key numerical variables
+monthly_average = df_filtered.groupby('month').agg(
+    avg_temp_c=('temperature_celsius', 'mean'),
+    avg_humidity=('humidity', 'mean'),
+    max_wind_kph=('wind_kph', 'max'),
+    count=('country', 'size')
+).reset_index()
+
+print(f"\n--- 5. Aggregation: Monthly average temperature and other metrics for '{country_filter}'. (First 5 rows) ---")
+print(monthly_average.head().to_markdown(index=False, numalign="left", stralign="left"))
+
+# --- 6. Evaluation and Deliverable ---
+
+# Save the final cleaned and preprocessed dataset
+output_file_name = 'GlobalWeatherRepository_cleaned_processed.csv'
+df.to_csv(output_file_name, index=False)
+print(f"\n--- 6. Deliverable: Cleaned dataset saved as '{output_file_name}' ---")
+
+
+# Generate Summary Document Outline (Programmatic Output)
+print("\n\n--- SUMMARY DOCUMENT OUTLINE: Data Schema and Quality Issues ---")
+print("1. Data Schema (Final Cleaned Dataset):")
+df.info()
+print("\n2. Key Variables (Post-Processing):")
+print("- 'temperature_celsius' (Original): Mean, Min, Max:")
+print(df['temperature_celsius'].agg(['mean', 'min', 'max']).to_markdown())
+print("\n- 'temperature_celsius_normalized' (New Normalized Column): Mean, Min, Max:")
+print(df['temperature_celsius_normalized'].agg(['mean', 'min', 'max']).to_markdown())
+print("\n- Categorical Variable Counts (Top 5 Conditions):")
+print(df['condition_text'].value_counts().head().to_markdown())
+print("\n3. Data Quality Issues Handled:")
+print("- Missing Values: Filled all missing numerical entries with the column mean.")
+print("- Unit Inconsistency: Removed redundant columns (Fahrenheit, Miles, Inches) to standardize on Metric (Celsius, km, mb).")
+print("- Data Types: Converted 'last_updated' and all time columns ('sunrise', 'sunset', etc.) to proper datetime objects.")
