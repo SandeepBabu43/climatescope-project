@@ -4,8 +4,7 @@ import io
 
 class WeatherDataCleaner:
     """
-    A class to perform the cleaning, standardization, and aggregation 
-    required for Milestone 1 of the Global Weather Repository project.
+    A class to perform the cleaning, standardization, and aggregation.
     """
 
     def __init__(self, original_file_path: str):
@@ -132,3 +131,4 @@ if __name__ == "__main__":
             print(df_final.head().to_markdown(index=False))
         else:
             print("\n❌ Process failed during aggregation.")
+
